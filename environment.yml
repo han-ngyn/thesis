@@ -1,0 +1,12 @@
+name: thesis-analysis
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - h5py
+  - matplotlib
+  - numpy
+  - pandas
+  - scipy
+  - seaborn
+  - jupyterlab
