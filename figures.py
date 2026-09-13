@@ -45,6 +45,10 @@ RASTER_FLIES = [
     ("0.5uM", 12),
     ("1uM", 35),
 ]
+# Time window for the raster, in minutes. None = the whole recording.
+# A 10-minute window makes individual turns distinguishable; across two
+# hours the ticks merge into a solid block.
+RASTER_WINDOW_MIN = (30, 40)
 
 N_BOOT = 2000
 
@@ -425,12 +429,42 @@ def list_files(data_dir=DATA_DIR):
     for f in sorted(data_dir.rglob("*.hdf5")):
         print(f"  {f.parent.name:10} {f.name}")
 
+def pick_raster_flies(df, min_turns=100):
+    """Three flies spanning the range of turn bias: left-biased, unbiased,
+    right-biased.
 
-def raster_figure(chosen=RASTER_FLIES, data_dir=DATA_DIR):
-    """Every turn a fly made, as a tick on a timeline, coloured by direction.
+    A contrast makes the individuality point far better than three average
+    flies would — the reference figures in the literature do the same.
+    """
+    kept = df[df["n_turns"] >= min_turns].dropna(subset=["turn_bias"])
+    if len(kept) < 3:
+        print("  raster: not enough flies to choose from, using RASTER_FLIES")
+        return RASTER_FLIES
 
-    One row per fly. Shows the raw sequence behind bias and switchiness — a
-    strongly biased fly looks mostly one colour, an alternating fly striped.
+    low = kept.loc[kept["turn_bias"].idxmin()]
+    mid = kept.loc[(kept["turn_bias"] - 0.5).abs().idxmin()]
+    high = kept.loc[kept["turn_bias"].idxmax()]
+
+    print("  raster flies chosen by turn bias:")
+    for tag, r in [("left-biased", low), ("unbiased", mid),
+                   ("right-biased", high)]:
+        print(f"    {tag:13} {r['file']} fly {int(r['fly'])}  "
+              f"bias {r['turn_bias']:.2f}  n={int(r['n_turns'])}")
+    return [(r["file"], int(r["fly"])) for r in (low, mid, high)]
+
+
+def raster_figure(chosen=RASTER_FLIES, data_dir=DATA_DIR,
+                  window=RASTER_WINDOW_MIN):
+    """Each fly's turns as ticks on its own timeline.
+
+    Right turns sit on the upper sub-row and left turns on the lower, so the
+    balance between them reads directly instead of having to be judged from
+    colour. Turn counts appear on the left and turn bias on the right.
+
+    window restricts the plot to a slice of the recording. Across two hours
+    the ticks merge into a solid block; a few minutes is sparse enough to
+    see individual turns. Counts and bias are computed over the window, so
+    they describe what is actually drawn rather than the whole recording.
     """
     from analyze_ymaze import detect_orientation, read_file, turn_directions
 
@@ -467,35 +501,79 @@ def raster_figure(chosen=RASTER_FLIES, data_dir=DATA_DIR):
                   f"{orientation}, no scored turns")
             continue
 
-        loaded.append({
-            "label": f"{file_path.parent.name}\nfly {fly}",
-            "minutes": minutes[scored],
-            "directions": directions[scored],
-        })
+        minutes, directions = minutes[scored], directions[scored]
+
+        if window is not None:
+            keep = (minutes >= window[0]) & (minutes <= window[1])
+            if keep.sum() < 2:
+                print(f"  raster: {file_path.name} fly {fly} has only "
+                      f"{keep.sum()} turns in {window[0]}-{window[1]} min")
+                continue
+            minutes, directions = minutes[keep], directions[keep]
+
+        loaded.append({"minutes": minutes, "directions": directions})
 
     if not loaded:
         print("  raster skipped: no usable flies")
         return
 
-    height = min(14 * len(loaded) + 22, MAX_HEIGHT_MM)
-    fig, ax = new_figure((WIDE_MM[0], height))
+    # One panel per fly, each with its own time axis. Built with add_axes
+    # rather than subplots so the vertical spacing is set in mm.
+    plot_w = 120.0                 # mm, the tick area
+    left, right = 22.0, 18.0       # mm, space for counts and bias text
+    panel_h, gap_h = 14.0, 12.0    # mm, plot height then room for the axis
+    bottom, top = 4.0, 3.0
 
-    for row, fly in enumerate(loaded):
-        for value, color in [(1, "#bf812d"), (0, "#35978f")]:
-            mask = fly["directions"] == value
-            ax.vlines(fly["minutes"][mask], row - 0.35, row + 0.35,
-                      color=color, lw=0.5)
+    W = plot_w + left + right
+    H = len(loaded) * (panel_h + gap_h) + bottom + top
+    if W > MAX_WIDTH_MM or H > MAX_HEIGHT_MM:
+        raise ValueError(f"Raster {W:.0f}x{H:.0f} mm exceeds the limit")
 
-    ax.set_yticks(range(len(loaded)))
-    ax.set_yticklabels([f["label"] for f in loaded])
-    ax.set_ylim(-0.7, len(loaded) - 0.3)
-    ax.invert_yaxis()
-    ax.set_xlabel("Time (minutes)")
-    ax.set_title("Turns over time   (right = brown, left = teal)")
-    for side in ("top", "right", "left"):
-        ax.spines[side].set_visible(False)
+    fig = plt.figure(figsize=(W * MM, H * MM))
+
+    # Sub-rows sit well apart and the tick marks are short, so the two row
+    # labels cannot collide however long the counts get.
+    OFFSET, HALF = 0.30, 0.17
+
+    for i, fly in enumerate(loaded):
+        # stack downward, first fly at the top
+        y0 = bottom + (len(loaded) - 1 - i) * (panel_h + gap_h)
+        ax = fig.add_axes([left / W, y0 / H, plot_w / W, panel_h / H])
+
+        n_right = int((fly["directions"] == 1).sum())
+        n_left = int((fly["directions"] == 0).sum())
+        total = n_right + n_left
+        bias = n_right / total if total else np.nan
+
+        # counts on a single line each — two-line labels are what collide
+        yticks, ylabels = [], []
+        for value, color, off, label in [
+            (1, "#bf812d", +OFFSET, f"Right: {n_right}"),
+            (0, "#35978f", -OFFSET, f"Left: {n_left}"),
+        ]:
+            t = fly["minutes"][fly["directions"] == value]
+            ax.vlines(t, off - HALF, off + HALF, color=color, lw=1.2)
+            yticks.append(off)
+            ylabels.append(label)
+
+        # No treatment label: the figure is about the spread of turn bias
+        # between individuals, not about which group they came from.
+        ax.text(1.02, 0.5, f"Turn bias\n{bias:.2f}", transform=ax.transAxes,
+                va="center", ha="left", fontsize=7)
+
+        if window is not None:
+            ax.set_xlim(*window)
+        ax.set_ylim(-0.5, 0.5)
+        ax.set_yticks(yticks)
+        ax.set_yticklabels(ylabels)
+        ax.tick_params(axis="y", length=0)
+        ax.set_xlabel("Time (minutes)")
+
+        # bottom axis only — a full box would crowd the labels on both sides
+        for side in ("top", "right", "left"):
+            ax.spines[side].set_visible(False)
+
     save(fig, "raster_turns")
-
 
 # ============================================================
 # Run
@@ -519,9 +597,9 @@ if __name__ == "__main__":
                    reference=0.5)
     scatter_figure(df, "n_turns", "Number of turns", "total_turns",
                    require_turns=False)
-    scatter_figure(df, "distance", "Distance travelled (px)", "distance",
+    scatter_figure(df, "distance_mm", "Distance travelled (mm)", "distance",
                    require_turns=False)
-    scatter_figure(df, "walking_speed", "Walking speed (px/s)",
+    scatter_figure(df, "walking_speed_mm_s", "Walking speed (mm/s)",
                    "walking_speed", require_turns=False)
     scatter_figure(df, "switchiness", "Switchiness", "switchiness", reference=1.0)
     scatter_figure(df, "clumpiness", "Clumpiness", "clumpiness", reference=1.0)
@@ -540,13 +618,17 @@ if __name__ == "__main__":
                        "variability_clumpiness")
     variability_figure(df, "tortuosity", "Fly-to-fly variability in tortuosity",
                        "variability_tortuosity")
-    variability_figure(df, "walking_speed", "Fly-to-fly variability in walking speed (px/s)",
+    variability_figure(df, "walking_speed_mm_s",
+                       "Fly-to-fly variability in walking speed (mm/s)",
                        "variability_walking_speed", require_turns=False)
-    variability_figure(df, "distance", "Fly-to-fly variability in distance (px)",
+    variability_figure(df, "distance_mm",
+                       "Fly-to-fly variability in distance (mm)",
                        "variability_distance", require_turns=False)
     variability_figure(df, "n_turns", "Fly-to-fly variability in turn count",
                        "variability_n_turns", require_turns=False)
 
-    raster_figure()
+    # raster_figure()
+    raster_figure(chosen=pick_raster_flies(df))
+    # raster_figure(window=None)
 
     print("\nDone.")

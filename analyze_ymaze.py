@@ -2,6 +2,7 @@
 Per-fly Y-maze metrics.
 
 Walks every HDF5 under DATA_DIR, computes one row per fly, saves a CSV.
+See METRICS.md for what each number means.
 """
 
 from pathlib import Path
@@ -18,12 +19,21 @@ import pandas as pd
 DATA_DIR = Path("/Users/hannguyen/debivort/thesis/ymaze_rawdata")
 OUTPUT_CSV = Path("/Users/hannguyen/debivort/thesis/ymaze_analysis/outputs/fly_metrics.csv")
 
-# Below this speed the fly counts as stopped, and those frames are left out
-# of the walking-speed average. Pixels/second — pick from your own data.
-MIN_WALKING_SPEED = 3.0
+# Camera calibration, from calibrate_pixels.py. Run that first and paste
+# the number it prints here.
+PIXELS_PER_MM = 3.2742
 
-# Faster than this is a tracking glitch, not a fly.
-MAX_PLAUSIBLE_SPEED = 150.0
+# Walking is classified with a Schmitt trigger, following Corfas, Sharma &
+# Dickinson 2019 (Curr Biol 29:1660): a fly counts as stopped once its speed
+# falls below STOP_BELOW, and as walking once it rises above WALK_ABOVE.
+# Between the two it keeps whatever state it was already in. mm/second.
+STOP_BELOW = 1.0
+WALK_ABOVE = 3.0
+
+# Faster than this is a tracking glitch, not a fly. mm/second. The paper
+# rejects jumps over 1.5 mm between consecutive frames, which at their 30 Hz
+# works out near 45 mm/s.
+MAX_PLAUSIBLE_SPEED = 50.0
 
 
 # ============================================================
@@ -99,12 +109,19 @@ def detect_orientation(centroid):
 # ============================================================
 
 def turn_directions(arm_sequence, orientation):
-    """determining left or right turns
+    """Arm IDs -> turns. 1 = right, 0 = left, nan = couldn't be scored.
 
-    Arms are numbered 1,2,3 around the maze. Going from arm a to arm b,
-    (b - a) mod 3 is 1 or 2 — the two rotation directions. Which one is
-    "right" from the fly's view depends on maze orientation.
+    A turn is worked out from which arm the fly came from and which it went
+    to. In a Y-maze every move is a left or a right — there's no straight.
 
+    Subtracting the arm numbers tells you which way, except they're numbered
+    1, 2, 3 in a circle, so going past 3 wraps back to 1 and the subtraction
+    breaks. The remainder after dividing by 3 fixes that: one way around
+    always gives 1, the other always gives 2. Which of those is the fly's
+    right depends on how the maze points, hence the orientation argument.
+
+    Same length as the input, unscored turns left as nan, so the caller can
+    tell turns 5 and 7 weren't adjacent just because 6 went missing.
     """
     arm_sequence = np.asarray(arm_sequence, dtype=float)
     out = np.full(len(arm_sequence), np.nan)
@@ -132,13 +149,16 @@ def turn_metrics(turns, time, orientation):
     # though n_turns may be large.
     n_turns = len(turn_frames)
 
-    # Bias: right turns / scored turns.
+    # Bias: right turns / scored turns. 0.5 = no preference.
     bias = float(directions[scored].mean()) if scored.any() else np.nan
 
-    # Switchiness: total number of alternating transitions normalized by the
-    # fly's overall turning bias.
+    # Switchiness: does the fly alternate more or less than you'd expect from
+    # its bias alone? A fly that turns right 90% of the time can't switch
+    # often, so we compare against a coin with the same bias, which switches
+    # 2*r*(1-r) of the time.
     #   =1 memoryless | >1 alternates | <1 repeats itself
-    # Only pairs where BOTH turns scored, so gaps never fake adjacency.
+    # Only pairs where BOTH turns scored: if turn 6 is missing, turns 5 and 7
+    # weren't really adjacent and pairing them invents a switch.
     adjacent = scored[:-1] & scored[1:]
     n_pairs = int(adjacent.sum())
     if n_pairs and 0 < bias < 1:
@@ -147,8 +167,9 @@ def turn_metrics(turns, time, orientation):
     else:
         switchiness = np.nan
 
-    # Clumpiness: are fly turns clustered or are they spread out?
-    # Take the gaps between turns, then divide their spread by their average.
+    # Clumpiness: are the turns clustered in time or spread out? Take the gaps
+    # between turns, divide their spread by their average. Dividing by the
+    # average is what lets you compare a slow fly to a fast one.
     #   =1 random | >1 bursty | <1 evenly spaced
     gaps = np.diff(np.cumsum(time)[turn_frames])
     clumpiness = float(np.std(gaps) / np.mean(gaps)) if len(gaps) > 1 and np.mean(gaps) > 0 else np.nan
@@ -165,9 +186,36 @@ def turn_metrics(turns, time, orientation):
 # Movement metrics
 # ============================================================
 
+def walking_mask(speed, stop_below=STOP_BELOW, walk_above=WALK_ABOVE):
+    """Which frames count as walking, by Schmitt trigger.
+
+    A single cutoff makes a fly hovering near it flicker between walking and
+    stopped many times a second, which inflates the count of transitions and
+    makes the walking-speed average depend on exactly where the cutoff sits.
+    Two thresholds with hysteresis fix that: the fly must exceed walk_above
+    to be called walking, and fall under stop_below to be called stopped.
+    In between it keeps its current state.
+    """
+    state = np.full(len(speed), np.nan)
+    state[speed > walk_above] = 1.0
+    state[speed < stop_below] = 0.0
+
+    # carry the last decided state forward across the ambiguous band
+    idx = np.where(~np.isnan(state), np.arange(len(state)), 0)
+    np.maximum.accumulate(idx, out=idx)
+    state = state[idx]
+    state[np.isnan(state)] = 0.0        # before any crossing, count as stopped
+    return state.astype(bool)
+
+
 def path_tortuosity(x, y, turn_frames):
     """Path walked between consecutive turns / straight line between them.
-    1.0 = perfectly straight. Median across traversals."""
+    1.0 = perfectly straight. Median across traversals.
+
+    Measured between turns rather than across the whole recording: after
+    hours in a closed maze the fly ends up wherever it happens to be, so a
+    whole-recording straight line is an arbitrary number.
+    """
     ratios = []
     for start, end in zip(turn_frames[:-1], turn_frames[1:]):
         sx, sy = x[start:end + 1], y[start:end + 1]
@@ -185,7 +233,8 @@ def path_tortuosity(x, y, turn_frames):
 
 
 def movement_metrics(centroid, turns, time):
-    blank = {"distance": np.nan, "walking_speed": np.nan, "tortuosity": np.nan}
+    blank = {"distance_mm": np.nan, "walking_speed_mm_s": np.nan,
+             "fraction_walking": np.nan, "tortuosity": np.nan}
 
     x, y = get_xy(centroid)
     valid = np.isfinite(x) & np.isfinite(y)
@@ -198,23 +247,29 @@ def movement_metrics(centroid, turns, time):
     # time[i] is the gap BEFORE frame i, so the step i -> i+1 took time[i+1]
     seconds = time[1:]
 
-    # keep only steps where both frames were tracked and the clock moved
+    # Keep only steps where both frames were tracked and the clock moved.
+    # Stripping NaNs first would leave frame 500 next to frame 900 and turn
+    # a tracking gap into one huge step the fly never walked.
     usable = valid[:-1] & valid[1:] & np.isfinite(seconds) & (seconds > 0)
     step, seconds = step[usable], seconds[usable]
     if not len(step):
         return blank
 
+    # convert to mm before thresholding, so the cutoffs mean what they say
+    step = step / PIXELS_PER_MM
     speed = step / seconds
-    real = speed < MAX_PLAUSIBLE_SPEED
+    real = speed < MAX_PLAUSIBLE_SPEED          # drop tracking glitches
     step, speed = step[real], speed[real]
     if not len(step):
         return blank
 
-    moving = speed > MIN_WALKING_SPEED
+    moving = walking_mask(speed)
 
     return {
-        "distance": float(step.sum()),
-        "walking_speed": float(speed[moving].mean()) if moving.any() else np.nan,
+        "distance_mm": float(step.sum()),
+        "walking_speed_mm_s": float(speed[moving].mean()) if moving.any() else np.nan,
+        "fraction_walking": float(moving.mean()),
+        # tortuosity is a ratio, so it is unitless and needs no conversion
         "tortuosity": path_tortuosity(x, y, np.flatnonzero(turns > 0)),
     }
 
