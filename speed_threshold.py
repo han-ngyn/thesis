@@ -10,11 +10,6 @@ From margo/utilities/blockActivity.m and kthresh_distribution.m:
     4. the threshold is the midpoint of the gap between the two clusters
     5. moving = speed > threshold
 
-Log first because the two modes are roughly log-normal: tracking jitter
-piles up near zero and real walking sits well above, but on a linear axis
-the jitter peak is so compressed that clustering separates the fast tail
-from everything else instead of separating jitter from walking.
-
 Edit SETTINGS, then run.
 """
 
