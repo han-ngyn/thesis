@@ -11,10 +11,6 @@ groups split across light conditions.
 This compares 1 uM against control within each light condition separately,
 alongside the pooled comparison for reference, and plots the same thing.
 
-Splitting halves the sample in each comparison, so intervals widen by roughly
-40%. An effect that stops clearing zero when split may have been weakened by
-that alone rather than being absent.
-
 Edit SETTINGS, then run.
 """
 
