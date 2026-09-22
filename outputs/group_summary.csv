@@ -1,0 +1,31 @@
+Metric,Session,Treatment,Flies (n),Mean,Fly-to-fly spread,Spread type
+Number of turns,July (lights off),Control,745,523.1,299.65,SD
+Number of turns,July (lights off),0.5 uM,613,656.0,297.98,SD
+Number of turns,Oct/Nov (lights on),Control,392,448.0,304.42,SD
+Number of turns,Oct/Nov (lights on),1 uM,392,366.7,285.59,SD
+Number of turns,Oct/Nov (lights off),Control,392,767.1,390.12,SD
+Number of turns,Oct/Nov (lights off),1 uM,392,670.3,369.71,SD
+Distance (mm),July (lights off),Control,735,21344.0,10126.0,SD
+Distance (mm),July (lights off),0.5 uM,597,26434.0,9608.0,SD
+Distance (mm),Oct/Nov (lights on),Control,382,24189.0,10433.9,SD
+Distance (mm),Oct/Nov (lights on),1 uM,386,18868.0,11094.0,SD
+Distance (mm),Oct/Nov (lights off),Control,381,38066.0,13198.6,SD
+Distance (mm),Oct/Nov (lights off),1 uM,384,33061.0,14129.4,SD
+Turn bias,July (lights off),Control,705,0.4982,0.11181,corrected SD
+Turn bias,July (lights off),0.5 uM,582,0.4973,0.11921,corrected SD
+Turn bias,Oct/Nov (lights on),Control,357,0.5007,0.10807,corrected SD
+Turn bias,Oct/Nov (lights on),1 uM,346,0.4944,0.12343,corrected SD
+Turn bias,Oct/Nov (lights off),Control,365,0.4911,0.10071,corrected SD
+Turn bias,Oct/Nov (lights off),1 uM,367,0.5034,0.10682,corrected SD
+Switchiness,July (lights off),Control,705,0.9499,0.12282,SD
+Switchiness,July (lights off),0.5 uM,582,0.9463,0.09935,SD
+Switchiness,Oct/Nov (lights on),Control,357,0.9374,0.13295,SD
+Switchiness,Oct/Nov (lights on),1 uM,346,0.9371,0.14626,SD
+Switchiness,Oct/Nov (lights off),Control,365,0.8964,0.09416,SD
+Switchiness,Oct/Nov (lights off),1 uM,367,0.8873,0.12051,SD
+Clumpiness,July (lights off),Control,705,1.396,1.3827,SD
+Clumpiness,July (lights off),0.5 uM,582,1.107,1.3536,SD
+Clumpiness,Oct/Nov (lights on),Control,357,1.455,1.1387,SD
+Clumpiness,Oct/Nov (lights on),1 uM,346,2.265,1.8737,SD
+Clumpiness,Oct/Nov (lights off),Control,365,0.941,1.1508,SD
+Clumpiness,Oct/Nov (lights off),1 uM,367,1.33,1.8761,SD

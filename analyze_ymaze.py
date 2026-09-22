@@ -273,6 +273,70 @@ def movement_metrics(centroid, turns, time):
         "tortuosity": path_tortuosity(x, y, np.flatnonzero(turns > 0)),
     }
 
+# ============================================================
+# Cohort and session
+# ============================================================
+
+def label_sessions(df):
+    """Tag each fly in fly_metrics.csv with its cohort and light condition.
+
+    session is one of July, Oct-on, Oct-off. July flies were recorded once,
+    with lights off; October/November flies were recorded twice and appear
+    in both Oct-on and Oct-off, which is why those two are never combined:
+    a pooled column would count each animal twice.
+
+    The light suffix has to be matched carefully: every filename contains
+    the word "control", which contains the letters "on", so a plain search
+    for "on" would label every control fly as lights-on.
+    """
+    df = df.copy()
+    df["month"] = df["file"].str.extract(r"^NNYM_(\d{2})-")[0]
+    df["cohort"] = np.where(df["month"] == "07", "July", "Oct-Nov")
+
+    low = df["file"].str.lower()
+    off = low.str.contains(r"lights?_?off|_off\.", regex=True)
+    on = low.str.contains(r"lights?_?on|_on\.", regex=True)
+    df["lights"] = np.where(off, "off", np.where(on, "on", "not recorded"))
+
+    df["session"] = np.where(df["cohort"] == "July", "July",
+                             np.where(df["lights"] == "on", "Oct-on",
+                                      np.where(df["lights"] == "off",
+                                               "Oct-off", "unassigned")))
+    return df
+
+
+# ============================================================
+# Fly-to-fly spread
+# ============================================================
+
+def corrected_variance(bias, n_turns):
+    """Among-fly variance in turn bias with binomial sampling noise removed.
+
+    Observed spread = real spread + noise from estimating each fly's bias
+    from a finite number of turns. Without subtracting the second term, a
+    group whose flies turn less often looks more variable for that reason.
+    """
+    bias = np.asarray(bias, dtype=float)
+    n_turns = np.asarray(n_turns, dtype=float)
+    keep = np.isfinite(bias) & np.isfinite(n_turns) & (n_turns > 0)
+    bias, n_turns = bias[keep], n_turns[keep]
+    if len(bias) < 2:
+        return np.nan
+    return np.var(bias, ddof=1) - np.mean(bias * (1 - bias) / n_turns)
+
+
+def spread_of(sub, column, corrected):
+    """Fly-to-fly spread: corrected SD for turn bias, plain SD otherwise.
+
+    The corrected variance can come out slightly negative when the true
+    among-fly spread is near zero, so it is clipped before the square root.
+    """
+    v = sub[column].to_numpy(float)
+    if corrected:
+        return np.sqrt(max(corrected_variance(
+            v, sub["n_turns"].to_numpy(float)), 0.0))
+    v = v[np.isfinite(v)]
+    return v.std(ddof=1) if len(v) > 1 else np.nan
 
 # ============================================================
 # Run

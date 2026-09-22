@@ -1,0 +1,11 @@
+Metric,Comparison,"Flies (n), from","Flies (n), to","Mean, from","Mean, to",Change (%)
+Number of turns,Oct/Nov control: lights on to lights off,392,392,448.0,767.1,71.2
+Number of turns,Control: July to Oct/Nov lights off,745,392,523.1,767.1,46.7
+Distance (mm),Oct/Nov control: lights on to lights off,382,381,24189.0,38066.0,57.4
+Distance (mm),Control: July to Oct/Nov lights off,735,381,21344.0,38066.0,78.3
+Turn bias,Oct/Nov control: lights on to lights off,357,365,0.5007,0.4911,-1.9
+Turn bias,Control: July to Oct/Nov lights off,705,365,0.4982,0.4911,-1.4
+Switchiness,Oct/Nov control: lights on to lights off,357,365,0.9374,0.8964,-4.4
+Switchiness,Control: July to Oct/Nov lights off,705,365,0.9499,0.8964,-5.6
+Clumpiness,Oct/Nov control: lights on to lights off,357,365,1.455,0.941,-35.3
+Clumpiness,Control: July to Oct/Nov lights off,705,365,1.396,0.941,-32.6

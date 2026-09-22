@@ -1,0 +1,16 @@
+Metric,Comparison,Spread type,Control spread,Dosed spread,Difference,Change (%),95% CI of difference,Result
+Number of turns,0.5 uM vs control - July,SD,299.65,297.98,-1.67,-0.6,[-21.34 to 18.71],no difference detected
+Number of turns,1 uM vs control - Oct/Nov lights on,SD,304.42,285.59,-18.83,-6.2,[-45.76 to 6.71],no difference detected
+Number of turns,1 uM vs control - Oct/Nov lights off,SD,390.12,369.71,-20.41,-5.2,[-51.04 to 11.13],no difference detected
+Distance (mm),0.5 uM vs control - July,SD,10126.0,9608.0,-518.0,-5.1,[-1262.0 to 191.8],no difference detected
+Distance (mm),1 uM vs control - Oct/Nov lights on,SD,10433.9,11094.0,660.0,6.3,[-213.4 to 1521.5],no difference detected
+Distance (mm),1 uM vs control - Oct/Nov lights off,SD,13198.6,14129.4,930.8,7.1,[-514.1 to 2351.1],no difference detected
+Turn bias,0.5 uM vs control - July,corrected SD,0.11181,0.11921,0.00739,6.6,[-0.00289 to 0.01809],no difference detected
+Turn bias,1 uM vs control - Oct/Nov lights on,corrected SD,0.10807,0.12343,0.01537,14.2,[0.00130 to 0.02915],differs
+Turn bias,1 uM vs control - Oct/Nov lights off,corrected SD,0.10071,0.10682,0.0061,6.1,[-0.00860 to 0.01965],no difference detected
+Switchiness,0.5 uM vs control - July,SD,0.12282,0.09935,-0.02347,-19.1,[-0.04135 to -0.00712],differs
+Switchiness,1 uM vs control - Oct/Nov lights on,SD,0.13295,0.14626,0.01331,10.0,[-0.01164 to 0.04095],no difference detected
+Switchiness,1 uM vs control - Oct/Nov lights off,SD,0.09416,0.12051,0.02635,28.0,[0.00941 to 0.04543],differs
+Clumpiness,0.5 uM vs control - July,SD,1.3827,1.3536,-0.0291,-2.1,[-0.2747 to 0.2149],no difference detected
+Clumpiness,1 uM vs control - Oct/Nov lights on,SD,1.1387,1.8737,0.735,64.5,[0.5211 to 0.9472],differs
+Clumpiness,1 uM vs control - Oct/Nov lights off,SD,1.1508,1.8761,0.7253,63.0,[0.2435 to 1.2149],differs
